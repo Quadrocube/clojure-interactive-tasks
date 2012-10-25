@@ -12,7 +12,9 @@
 ;;; Note: upper left corner cell is (0, 0).
 
 ;;; Uncomment and substitute your solution
-; (run-not-grow YOUR_SOLUTION_HERE)
+( def SOLUTION 
+)
+; (run-not-grow SOLUTION)
 
 
 
