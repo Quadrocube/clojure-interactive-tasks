@@ -1,44 +1,97 @@
+; TODO Use refs instead of atoms
 (ns cellular-automaton.core
   (:use quil.core))
+(use '[clojure.pprint :only (pp pprint)])
 
-(def w 800)
-(def h 600)
-(def cell-size (atom 10))
-(defn board-width []
-  (/ w @cell-size))
-(defn board-height []
-  (/ h @cell-size))
+; field-size
+(def cell-size 10)
+(def w (* 80 cell-size))
+(def h (* 60 cell-size))
+(defn inside? [[x y]] (and (< x w)
+                           (< y h)
+                           (>= x 0)
+                           (>= y 0)))
+(defn to-board-coords [[x y]] (do [(* x cell-size) (* y cell-size)]))
+(defn from-board-coords [[x y]] (do [(int (/ x cell-size)) (int (/ y cell-size))]))
 
+; colors
+(def back-colour 60)
+(def line-colour 10)
 
-(defn setup [state-fn]
-  )
+; Automaton-specific details
+(def cells-to-redraw (atom (sorted-map))) 
+(def cells           (atom {}))
+(def cells-previous  (atom {}))
+(def Name            (atom nil))
 
-(defn draw [state-fn cell-colors]
-  )
+; Frame-rate control funcs
+(defn redraw-continue [] (frame-rate 10))
+(defn redraw-stop [] (frame-rate 0))
+(defn redraw-stopped? [] (when (= current-frame-rate 0)
+                     (true)))
+(defn redraw-toggle [] (if (redraw-stopped?)
+                    (redraw-continue)
+                    (redraw-stop)))
 
-(defn key-handler [state-fn]
-  )
+; Handlers
+(defn key-handler [] (let [pressed-key (raw-key)]
+  (cond
+    (= pressed-key \space)
+        (redraw-toggle)
+    (and (redraw-stopped?) (= pressed-key \n)) ; Complete
+        (redraw)
+    (= pressed-key \c)
+      (let [prev-rate (current-frame-rate)] 
+        (do
+            (redraw-stop) 
+            (reset! cells-previous (into {} (for [x (range 0 w cell-size) 
+                                                  y (range 0 h cell-size)] 
+                                                 [[x y] nil])))
+            (redraw) 
+            (frame-rate prev-rate)))
+  )))
 
-(defn mouse-handler [switch-cell-fn]
-  )
+(defn mouse-handler [colours] 
+  (let [mouse-coord [(mouse-x) (mouse-y)]
+        updatable? (state :updatable?)
+        cell-coord (from-board-coords mouse-coord)
+        list-states (keys colours)
+        cell-state (@cells-previous cell-coord) 
+        next-states (concat (drop-while #(not= cell-state %) list-states) list-states)]
+      (redraw-stop) 
+      (reset! updatable? false)
+      (swap! cells-to-redraw assoc cell-coord (second next-states))
+      (swap! cells-previous assoc cell-coord (second next-states))
+      (redraw)
+      (reset! updatable? true)
+  ))
 
-(defn setup []
-  (smooth)                          ;;Turn on anti-aliasing
-  (frame-rate 1)                    ;;Set framerate to 1 FPS
-  (background 200))                 ;;Set the background colour to
-                                    ;;  a nice shade of grey.
-(defn draw []
-  (stroke (random 255))             ;;Set the stroke colour to a random grey
-  (stroke-weight (random 10))       ;;Set the stroke thickness randomly
-  (fill (random 255))               ;;Set the fill colour to a random grey
+; Main quil funcs
+(defn draw [colours] 
+  (doseq [[pos state] @cells-to-redraw :let [[x y] (to-board-coords pos)] :when (inside? [x y])] ; TODO change for use with while (sorted-map)
+    (stroke-weight 1)          
+    (stroke line-colour)
+    (fill (colours state))                 
+    (rect x y cell-size cell-size)))
 
-  (let [diam (random 100)           ;;Set the diameter to a value between 0 and 100
-        x    (random (width))       ;;Set the x coord randomly within the sketch
-        y    (random (height))]     ;;Set the y coord randomly within the sketch
-    (ellipse x y diam diam)))       ;;Draw a circle at x y with the correct diameter
+(defn setup [colours]
+  (smooth)                                
+  (frame-rate 0)                          
+  (set-state! :updatable? (atom false))
+  (background back-colour)
+  (doseq [i (range 0 (+ w 1) cell-size)]
+         (line i 0 i h))
+  (doseq [i (range 0 (+ h 1) cell-size)]
+         (line 0 i w i))
+  (draw colours))                       
 
-(defsketch example                  ;;Define a new sketch named example
-  :title "Oh so many grey circles"  ;;Set the title of the sketch
-  :setup setup                      ;;Specify the setup fn
-  :draw draw                        ;;Specify the draw fn
-  :size [323 200])                  ;;You struggle to beat the golden ratio
+(defn field [update-fn colours window-name] 
+  (sketch
+    :title window-name
+    :draw #(do 
+               (when @(state :updatable?) (update-fn)) 
+               (draw colours)) 
+    :setup #(setup colours)                
+    :key-pressed key-handler
+    :mouse-pressed #(mouse-handler colours)
+    :size [w h]))

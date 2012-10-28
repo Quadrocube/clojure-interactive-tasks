@@ -1,6 +1,6 @@
 (ns cellular-automaton.work
   (:use cellular-automaton.core))
-
+(use '[clojure.pprint :only (pp pprint)])
 ;;; Your task is to implement cellular automaton.
 ;;; The most famous example of cellular automaton is Conway's Game of Life.
 ;;; Unlike previous tasks now you have to implement visualization and bots. So you need to implement everything :)
@@ -26,15 +26,39 @@
 
 ;;; Add ability to change cells' states by mouse click, to restart and pause simulation.
 
-(def size-x (quot w @cell-size))
-(def size-y (quot h @cell-size))
-
 ; Conway's Game of Life (http://en.wikipedia.org/wiki/Conway's_Game_of_Life)
 
+(def GoL-colours {nil back-colour :on 255})
+
+(reset! cells-previous {[1 0] :on 
+                        [2 1] :on
+                        [0 2] :on
+                        [1 2] :on
+                        [2 2] :on})
+
+(reset! cells-to-redraw @cells-previous)
+
 (defn GoL-neighbours [[x y]] (for [dx [0 1 -1] dy [0 1 -1] :when (not= 0 dx dy)] [(+ x dx) (+ y dy)]))
-(defn [[x y]] GoL-count-neighbours (reduce #(when (not (nil? %2)) (inc %)) 
-                                           0 
-                                           (GoL-neighbours [x y])))
+
+(defn GoL-step [] (
+   do
+   (reset! cells 
+           (into {} (for [[pos n] (frequencies (mapcat GoL-neighbours (keys @cells-previous)))  
+                          :when (or (= n 3) 
+                                    (and (@cells-previous pos) 
+                                         (= n 2)))]
+                         [pos :on])))
+   (reset! cells-to-redraw (merge 
+                             (zipmap (clojure.set/difference (set (keys @cells)) 
+                                                             (set (keys @cells-previous)))
+                                     (repeat :on))
+                             (zipmap (clojure.set/difference (set (keys @cells-previous)) 
+                                                             (set (keys @cells)))
+                                     (repeat nil))))
+   (reset! cells-previous @cells) 
+))
+
+(field GoL-step GoL-colours "Game of Life")
 
 #_(start-simulation
 	game-of-life gol-cell-colors gol-switch-cell)
