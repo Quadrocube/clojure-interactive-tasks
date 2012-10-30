@@ -2,6 +2,26 @@
   (:use [snake.core :only (run-not-grow run-grow run-many-apples run-with-walls)]))
 
 
+(defn abs [x] (max x (- x)))
+
+(defn neighbours [[x y]] (for [dx [1 0 -1] dy [1 0 -1]
+                              :when (= 1 (+ (abs dx) (abs dy)))]
+                                    [(mod (+ dx x) 40) (mod (+ dy y) 30)]))
+
+(defn direct [[x1 y1] [x2 y2]] (cond (= (mod (dec y1) 30) y2) :up
+                                        (= (mod (inc y1) 30) y2) :down
+                                        (= (mod (dec x1) 40) x2) :left
+                                        (= (mod (inc x1) 40) x2) :right))
+
+(defn construct-queue-entry [next-move-num beg-direction prev-pos pos]
+  (let [beg-direction (if (nil? beg-direction)
+                          (direct prev-pos pos)
+                          beg-direction)]
+    [pos next-move-num beg-direction]))
+
+(defn possible? [restricted next-move-num pos] (or (nil? (restricted pos))
+                                                   (> next-move-num (restricted pos))))
+
 ;;; You're writing a bot for playing snake.
 ;;; So, you are a snake and your goal is to collect apples.
 ;;; Field sizes: 40 x 30
@@ -30,44 +50,28 @@
 
 ;;; Uncomment and substitute your solution
 (defn move-growing [snake apple]
-    (let [apple      #{apple} ; change in 3-rd
+    (let [apple      #{apple}
           len        (count snake)
           head       (first snake)
-          snake      (zipmap snake (range len 0 -1))                        ; snake {[pos turn-to-vanish]}
-          abs        (fn [x] (max x (- x)))
-          neighbours (fn [[x y]] (for [dx [1 0 -1] dy [1 0 -1] ;ADD WRAP!
-                                     :when (= 1 (+ (abs dx) (abs dy)))]
-                                    [(mod (+ dx x) 40) (mod (+ dy y) 30)]))
+          snake      (zipmap snake (range len 0 -1))]                        ; snake {[pos turn-to-vanish]}
 
-          direct     (fn [[x1 y1] [x2 y2]] (cond (= (mod (dec y1) 30) y2) :up
-                                                 (= (mod (inc y1) 30) y2) :down
-                                                 (= (mod (dec x1) 40) x2) :left
-                                                 (= (mod (inc x1) 40) x2) :right))]
+        (loop [restricted snake                                              ; restricted {[pos turn-to-vanish]}
+               queue      (list [head 0 nil])]                               ; queue '([cur-pos cur-turn beg-direction]])
 
-        (loop [restricted snake                                            ; restricted {[pos turn-to-vanish]}
-               queue      (list [head 0 nil])]                             ; queue '([cur-pos cur-turn beg-move]])
+            (let [[current & other] queue
+                  current-pos       (first current)
+                  beg-direction     (last current)
+                  next-move-num     (inc (second current))
+                  possible-moves    (map (partial construct-queue-entry next-move-num beg-direction current-pos)
+                                         (filter (partial possible? restricted next-move-num)
+                                            (neighbours current-pos)))
+                  apple (some #(if (apple (first %)) % nil) possible-moves)]
 
-            (let [current (first queue)
-                  other (rest queue)
-                  beg-move (last current)
-                  next-move-num (inc (second current))
-                  possible-moves (map #(do [% next-move-num (if (nil? beg-move)
-                                                                        (direct (first current) %)
-                                                                        beg-move)]) 
-                                      (filter #(or (nil? (restricted %)) 
-                                                   (> next-move-num (restricted %))) ; >= ?
-                                              (neighbours (first current))))
-                  apple? (some #(if (apple (first %)) % nil) possible-moves)]
-
-                (if (nil? apple?)
-                    (recur (into restricted (for [[pos turn _] possible-moves] [pos (+ turn len)])) (concat other possible-moves))
-                    (last apple?)
-                )
-            )
-        )
-    )
-)
-
+                (if apple
+                    (last apple)
+                    (recur (into restricted (for [[pos turn _] possible-moves] 
+                                                 [pos (+ turn len)])) 
+                           (concat other possible-moves)))))))
 ;(run-grow move-growing)
 
 
@@ -78,45 +82,30 @@
 ;;; E.g. you can try to reach nearest apple to the snake.
 
 ;;; Uncomment and substitute your solution
+
 (defn move-many-apples [snake apple]
     (let [apple      (set apple) 
           len        (count snake)
           head       (first snake)
-          snake      (zipmap snake (range len 0 -1))                        ; snake {[pos turn-to-vanish]}
-          abs        (fn [x] (max x (- x)))
-          neighbours (fn [[x y]] (for [dx [1 0 -1] dy [1 0 -1] ;ADD WRAP!
-                                     :when (= 1 (+ (abs dx) (abs dy)))]
-                                    [(mod (+ dx x) 40) (mod (+ dy y) 30)]))
+          snake      (zipmap snake (range len 0 -1))]                        ; snake {[pos turn-to-vanish]}
 
-          direct     (fn [[x1 y1] [x2 y2]] (cond (= (mod (dec y1) 30) y2) :up
-                                                 (= (mod (inc y1) 30) y2) :down
-                                                 (= (mod (dec x1) 40) x2) :left
-                                                 (= (mod (inc x1) 40) x2) :right))]
+        (loop [restricted snake                                              ; restricted {[pos turn-to-vanish]}
+               queue      (list [head 0 nil])]                               ; queue '([cur-pos cur-turn beg-direction]])
 
-        (loop [restricted snake                                            ; restricted {[pos turn-to-vanish]}
-               queue      (list [head 0 nil])]                             ; queue '([cur-pos cur-turn beg-move]])
+            (let [[current & other] queue
+                  current-pos       (first current)
+                  beg-direction     (last current)
+                  next-move-num     (inc (second current))
+                  possible-moves    (map (partial construct-queue-entry next-move-num beg-direction current-pos)
+                                         (filter (partial possible? restricted next-move-num)
+                                            (neighbours current-pos)))
+                  apple (some #(if (apple (first %)) % nil) possible-moves)]
 
-            (let [current (first queue)
-                  other (rest queue)
-                  beg-move (last current)
-                  next-move-num (inc (second current))
-                  possible-moves (map #(do [% next-move-num (if (nil? beg-move)
-                                                                        (direct (first current) %)
-                                                                        beg-move)]) 
-                                      (filter #(or (nil? (restricted %)) 
-                                                   (> next-move-num (restricted %))) ; >= ?
-                                              (neighbours (first current))))
-                  apple? (some #(if (apple (first %)) % nil) possible-moves)]
-
-                (if (nil? apple?)
-                    (recur (into restricted (for [[pos turn _] possible-moves] [pos (+ turn len)])) (concat other possible-moves))
-                    (last apple?)
-                )
-            )
-        )
-    )
-)
-
+                (if apple
+                    (last apple)
+                    (recur (into restricted (for [[pos turn _] possible-moves] 
+                                                 [pos (+ turn len)])) 
+                           (concat other possible-moves)))))))
 ; (run-many-apples move-many-apples)
 
 
@@ -127,44 +116,32 @@
 ;;; Wall is a vector of x and y.
 
 ;;; Uncomment and substitute your solution
+
+
+
 (defn move-with-walls [snake apple walls]
     (let [apple      (set apple) 
           len        (count snake)
           head       (first snake)
-          snake      (zipmap snake (range len 0 -1))                        ; snake {[pos turn-to-vanish]}
-          abs        (fn [x] (max x (- x)))
-          neighbours (fn [[x y]] (for [dx [1 0 -1] dy [1 0 -1] ;ADD WRAP!
-                                     :when (= 1 (+ (abs dx) (abs dy)))]
-                                    [(mod (+ dx x) 40) (mod (+ dy y) 30)]))
-
-          direct     (fn [[x1 y1] [x2 y2]] (cond (= (mod (dec y1) 30) y2) :up
-                                                 (= (mod (inc y1) 30) y2) :down
-                                                 (= (mod (dec x1) 40) x2) :left
-                                                 (= (mod (inc x1) 40) x2) :right))]
+          snake      (zipmap snake (range len 0 -1))]                        ; snake {[pos turn-to-vanish]}
 
         (loop [restricted (into snake (for [w walls] [w 999999999]))         ; restricted {[pos turn-to-vanish]}
-               queue      (list [head 0 nil])]                               ; queue '([cur-pos cur-turn beg-move]])
+               queue      (list [head 0 nil])]                               ; queue '([cur-pos cur-turn beg-direction]])
 
-            (let [current (first queue)
-                  other (rest queue)
-                  beg-move (last current)
-                  next-move-num (inc (second current))
-                  possible-moves (map #(do [% next-move-num (if (nil? beg-move)
-                                                                        (direct (first current) %)
-                                                                        beg-move)]) 
-                                      (filter #(or (nil? (restricted %)) 
-                                                   (> next-move-num (restricted %))) ; >= ?
-                                              (neighbours (first current))))
-                  apple? (some #(if (apple (first %)) % nil) possible-moves)]
+            (let [[current & other] queue
+                  current-pos       (first current)
+                  beg-direction     (last current)
+                  next-move-num     (inc (second current))
+                  possible-moves    (map (partial construct-queue-entry next-move-num beg-direction current-pos)
+                                         (filter (partial possible? restricted next-move-num)
+                                            (neighbours current-pos)))
+                  apple (some #(if (apple (first %)) % nil) possible-moves)]
 
-                (if (nil? apple?)
-                    (recur (into restricted (for [[pos turn _] possible-moves] [pos (+ turn len)])) (concat other possible-moves))
-                    (last apple?)
-                )
-            )
-        )
-    )
-)
+                (if apple
+                    (last apple)
+                    (recur (into restricted (for [[pos turn _] possible-moves] 
+                                                 [pos (+ turn len)])) 
+                           (concat other possible-moves)))))))
 
 (run-with-walls move-with-walls)
 
