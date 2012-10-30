@@ -1,7 +1,7 @@
 ; TODO Use refs instead of atoms
 (ns cellular-automaton.core
   (:use quil.core))
-(use '[clojure.pprint :only (pp pprint)])
+(use '[clojure.pprint :only (pp pprint)]) ; Only for debug purposes
 
 ; field-size
 (def cell-size 10)
@@ -25,8 +25,8 @@
 (def Name            (atom nil))
 
 ; Frame-rate control funcs
-(defn redraw-continue [] (frame-rate 10))
-(defn redraw-stop [] (frame-rate 0))
+(defn redraw-continue [] (start-loop))
+(defn redraw-stop [] (no-loop))
 (defn redraw-stopped? [] (when (= current-frame-rate 0)
                      (true)))
 (defn redraw-toggle [] (if (redraw-stopped?)
@@ -76,22 +76,22 @@
 
 (defn setup [colours]
   (smooth)                                
-  (frame-rate 0)                          
+  (frame-rate 10)                          
   (set-state! :updatable? (atom false))
   (background back-colour)
   (doseq [i (range 0 (+ w 1) cell-size)]
          (line i 0 i h))
   (doseq [i (range 0 (+ h 1) cell-size)]
          (line 0 i w i))
-  (draw colours))                       
+  (draw colours)                       
+  (redraw-stop))
 
 (defn field [update-fn colours window-name] 
   (sketch
     :title window-name
-    :draw #(do 
-               (when @(state :updatable?) (update-fn)) 
+    :draw #(do (when @(state :updatable?) (update-fn)) 
                (draw colours)) 
     :setup #(setup colours)                
-    :key-pressed key-handler
+ ;   :key-pressed key-handler
     :mouse-pressed #(mouse-handler colours)
     :size [w h]))
