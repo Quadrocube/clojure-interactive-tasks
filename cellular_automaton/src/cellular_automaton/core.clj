@@ -1,4 +1,3 @@
-; TODO Use refs instead of atoms
 (ns cellular-automaton.core
   (:use quil.core))
 (use '[clojure.pprint :only (pp pprint)]) ; Only for debug purposes
@@ -19,52 +18,47 @@
 (def line-colour 10)
 
 ; Automaton-specific details
-(def cells-to-redraw (atom (sorted-map))) 
-(def cells           (atom {}))
-(def cells-previous  (atom {}))
+(def cells-to-redraw (ref (sorted-map))) 
+(def cells           (ref {}))
+(def cells-previous  (ref {}))
 (def Name            (atom nil))
-
-; Frame-rate control funcs
-(defn redraw-continue [] (start-loop))
-(defn redraw-stop [] (no-loop))
-(defn redraw-stopped? [] (when (= current-frame-rate 0)
-                     (true)))
-(defn redraw-toggle [] (if (redraw-stopped?)
-                    (redraw-continue)
-                    (redraw-stop)))
+(def updatable?      (ref false))
 
 ; Handlers
 (defn key-handler [] (let [pressed-key (raw-key)]
   (cond
     (= pressed-key \space)
-        (redraw-toggle)
-    (and (redraw-stopped?) (= pressed-key \n)) ; Complete
-        (redraw)
+      (dosync
+          (alter updatable? not))
+    (= pressed-key \n) 
+      (dosync
+          (ensure  updatable?)
+          (ref-set updatable? true)
+          (redraw)
+          (ref-set updatable? false))
     (= pressed-key \c)
-      (let [prev-rate (current-frame-rate)] 
-        (do
-            (redraw-stop) 
-            (reset! cells-previous (into {} (for [x (range 0 w cell-size) 
-                                                  y (range 0 h cell-size)] 
-                                                 [[x y] nil])))
-            (redraw) 
-            (frame-rate prev-rate)))
-  )))
+      (dosync
+        (let [prev-state (ensure updatable?)] 
+          (ref-set updatable? false) 
+          (ensure  cells-previous)
+          (ref-set cells-previous (into {} (for [x (range 0 w cell-size) 
+                                                 y (range 0 h cell-size)] [[x y] nil])))
+          (redraw) 
+          (ref-set updatable? prev-state))))))
 
 (defn mouse-handler [colours] 
-  (let [mouse-coord [(mouse-x) (mouse-y)]
-        updatable? (state :updatable?)
-        cell-coord (from-board-coords mouse-coord)
-        list-states (keys colours)
-        cell-state (@cells-previous cell-coord) 
-        next-states (concat (drop-while #(not= cell-state %) list-states) list-states)]
-      (redraw-stop) 
-      (reset! updatable? false)
-      (swap! cells-to-redraw assoc cell-coord (second next-states))
-      (swap! cells-previous assoc cell-coord (second next-states))
-      (redraw)
-      (reset! updatable? true)
-  ))
+  (dosync
+     (let [mouse-coord [(mouse-x) (mouse-y)]
+           cell-coord (from-board-coords mouse-coord)
+           list-states (keys colours)
+           cell-state (@cells-previous cell-coord) 
+           next-states (concat (drop-while #(not= cell-state %) list-states) list-states)
+           prev-board-state (ensure updatable?)]
+         (ref-set updatable? false)
+         (alter   cells-to-redraw assoc cell-coord (second next-states))
+         (alter   cells-previous assoc cell-coord (second next-states))
+         (redraw)
+         (ref-set updatable? prev-board-state))))
 
 ; Main quil funcs
 (defn draw [colours] 
@@ -77,21 +71,18 @@
 (defn setup [colours]
   (smooth)                                
   (frame-rate 10)                          
-  (set-state! :updatable? (atom false))
   (background back-colour)
   (doseq [i (range 0 (+ w 1) cell-size)]
          (line i 0 i h))
   (doseq [i (range 0 (+ h 1) cell-size)]
-         (line 0 i w i))
-  (draw colours)                       
-  (redraw-stop))
+         (line 0 i w i)))
 
 (defn field [update-fn colours window-name] 
   (sketch
     :title window-name
-    :draw #(do (when @(state :updatable?) (update-fn)) 
+    :draw #(do (when @updatable? (update-fn)) 
                (draw colours)) 
     :setup #(setup colours)                
- ;   :key-pressed key-handler
+    :key-pressed key-handler
     :mouse-pressed #(mouse-handler colours)
     :size [w h]))

@@ -30,32 +30,35 @@
 
 (def GoL-colours {nil back-colour :on 255})
 
-(reset! cells-previous {[1 0] :on 
-                        [2 1] :on
-                        [0 2] :on
-                        [1 2] :on
-                        [2 2] :on})
-
-(reset! cells-to-redraw @cells-previous)
+(dosync
+  (ref-set cells-previous {[1 0] :on 
+                          [2 1] :on
+                          [0 2] :on
+                          [1 2] :on
+                          [2 2] :on})
+  (ref-set cells-to-redraw @cells-previous))
 
 (defn GoL-neighbours [[x y]] (for [dx [0 1 -1] dy [0 1 -1] :when (not= 0 dx dy)] [(+ x dx) (+ y dy)]))
 
-(defn GoL-step [] (
-   do
-   (reset! cells 
-           (into {} (for [[pos n] (frequencies (mapcat GoL-neighbours (keys @cells-previous)))  
-                          :when (or (= n 3) 
-                                    (and (@cells-previous pos) 
-                                         (= n 2)))]
-                         [pos :on])))
-   (reset! cells-to-redraw (merge 
-                             (zipmap (clojure.set/difference (set (keys @cells)) 
-                                                             (set (keys @cells-previous)))
-                                     (repeat :on))
-                             (zipmap (clojure.set/difference (set (keys @cells-previous)) 
-                                                             (set (keys @cells)))
-                                     (repeat nil))))
-   (reset! cells-previous @cells) 
+(defn GoL-step [] 
+   (dosync
+      (ensure cells)
+      (ensure cells-previous)
+      (ensure cells-to-redraw)
+      (ref-set cells 
+              (into {} (for [[pos n] (frequencies (mapcat GoL-neighbours (keys @cells-previous)))  
+                             :when (or (= n 3) 
+                                       (and (@cells-previous pos) 
+                                            (= n 2)))]
+                            [pos :on])))
+      (ref-set cells-to-redraw (merge 
+                                (zipmap (clojure.set/difference (set (keys @cells)) 
+                                                                (set (keys @cells-previous)))
+                                        (repeat :on))
+                                (zipmap (clojure.set/difference (set (keys @cells-previous)) 
+                                                                (set (keys @cells)))
+                                        (repeat nil))))
+      (ref-set cells-previous @cells) 
 ))
 
 (field GoL-step GoL-colours "Game of Life")
