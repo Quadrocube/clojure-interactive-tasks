@@ -14,14 +14,13 @@
 (defn from-board-coords [[x y]] (do [(int (/ x cell-size)) (int (/ y cell-size))]))
 
 ; colors
-(def back-colour 60)
-(def line-colour 10)
+(def back-colour [0 0 0])
+(def line-colour [161 157 159])
 
 ; Automaton-specific details
 (def cells-to-redraw (ref (sorted-map))) 
 (def cells           (ref {}))
 (def cells-previous  (ref {}))
-(def Name            (atom nil))
 (def updatable?      (ref false))
 
 ; Handlers
@@ -64,25 +63,30 @@
 (defn draw [colours] 
   (doseq [[pos state] @cells-to-redraw :let [[x y] (to-board-coords pos)] :when (inside? [x y])] ; TODO change for use with while (sorted-map)
     (stroke-weight 1)          
-    (stroke line-colour)
-    (fill (colours state))                 
+    (apply stroke line-colour)
+    (apply fill (colours state))                 
     (rect x y cell-size cell-size)))
 
-(defn setup [colours]
+(defn setup [colours start-field]
+  (dosync
+    (ref-set cells-previous start-field)
+    (ref-set cells-to-redraw @cells-previous))
   (smooth)                                
   (frame-rate 10)                          
-  (background back-colour)
+  (apply background back-colour)
+  (apply stroke line-colour)
+  (apply fill line-colour)                 
   (doseq [i (range 0 (+ w 1) cell-size)]
          (line i 0 i h))
   (doseq [i (range 0 (+ h 1) cell-size)]
          (line 0 i w i)))
 
-(defn field [update-fn colours window-name] 
+(defn field [update-fn colours start-field window-name] 
   (sketch
     :title window-name
     :draw #(do (when @updatable? (update-fn)) 
                (draw colours)) 
-    :setup #(setup colours)                
+    :setup #(setup colours start-field)                
     :key-pressed key-handler
     :mouse-pressed #(mouse-handler colours)
     :size [w h]))
