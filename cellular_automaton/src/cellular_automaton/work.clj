@@ -28,8 +28,12 @@
 
 (defn neighbours [[x y]] (for [dx [0 1 -1] dy [0 1 -1] :when (not= 0 dx dy)] [(+ x dx) (+ y dy)]))
 
-(defn clean [l]
-  (into {} (map #(let [[[_ state] freq] %] [state freq]) l)))
+(defn get-update-data [prev] 
+  (->> 
+  (for [[pos state] prev, neighbour (neighbours pos)] {neighbour state})
+     (apply merge-with #()) ; TODO: func similiar to concat but able to (concat :a :b) and get [:a :b]
+     (map (fn [k v] [k (frequencies v)]))
+     (into {})))
 
 ; Takes a sequence of rules
 ; Each rule should take the type of a cell and a mapping of type->count-neighbours-of-that-type and 
@@ -41,25 +45,19 @@
 
 (defn stepper [rules neighbours] (fn []
    (dosync
+     (let [cells-previous @cells]
       (ensure cells)
-      (ensure cells-previous)
       (ensure cells-to-redraw)
       (ref-set cells 
-              (into {} 
-                    (for [[pos l] (group-by #(get-in % [0 0]) ; group by cell coordinates, so we get map pos->[[[pos] type-i] freq-i]
-                                            (frequencies (for [[pos state] @cells-previous
-                                                               neighbour (neighbours pos)] 
-                                                          [neighbour state])))
-                          :let [old-state (@cells-previous pos)
-                                neighbour-types (clean l) ; currently we have some messed-up structure, clean it
-                                new-state (some identity ((apply juxt rules) old-state neighbour-types))]
-                          :when new-state]
-                         [pos new-state])))
+              (for [[pos neighbour-types] (get-update-data cells-previous)
+                    :let [old-state (cells-previous pos)
+                          new-state (some identity ((apply juxt rules) old-state neighbour-types))]
+                    :when new-state]
+                   [pos new-state]))
       (ref-set cells-to-redraw (merge @cells  
-                                      (zipmap (clojure.set/difference (set (keys @cells-previous)) 
+                                      (zipmap (clojure.set/difference (set (keys cells-previous)) 
                                                                       (set (keys @cells)))
-                                              (repeat nil))))
-      (ref-set cells-previous @cells))))
+                                              (repeat nil))))))))
 
 ; Conway's Game of Life (http://en.wikipedia.org/wiki/Conway's_Game_of_Life)
 

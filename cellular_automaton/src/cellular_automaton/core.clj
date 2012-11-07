@@ -20,7 +20,6 @@
 ; Automaton-specific details
 (def cells-to-redraw (ref (sorted-map))) 
 (def cells           (ref {}))
-(def cells-previous  (ref {}))
 (def updatable?      (ref false))
 
 ; Handlers
@@ -39,8 +38,7 @@
       (dosync
         (let [prev-state (ensure updatable?)] 
           (ref-set updatable? false) 
-          (ensure  cells-previous)
-          (ref-set cells-previous (into {} (for [x (range 0 w cell-size) 
+          (ref-set cells (into {} (for [x (range 0 w cell-size) 
                                                  y (range 0 h cell-size)] [[x y] nil])))
           (redraw) 
           (ref-set updatable? prev-state))))))
@@ -50,12 +48,12 @@
      (let [mouse-coord [(mouse-x) (mouse-y)]
            cell-coord (from-board-coords mouse-coord)
            list-states (keys colours)
-           cell-state (@cells-previous cell-coord) 
+           cell-state (@cells cell-coord) 
            next-states (concat (drop-while #(not= cell-state %) list-states) list-states)
            prev-board-state (ensure updatable?)]
          (ref-set updatable? false)
          (alter   cells-to-redraw assoc cell-coord (second next-states))
-         (alter   cells-previous assoc cell-coord (second next-states))
+         (alter   cells assoc cell-coord (second next-states))
          (redraw)
          (ref-set updatable? prev-board-state))))
 
@@ -69,8 +67,8 @@
 
 (defn setup [colours start-field]
   (dosync
-    (ref-set cells-previous start-field)
-    (ref-set cells-to-redraw @cells-previous))
+    (ref-set cells start-field)
+    (ref-set cells-to-redraw @cells))
   (smooth)                                
   (frame-rate 10)                          
   (apply background back-colour)
