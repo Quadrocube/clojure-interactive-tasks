@@ -30,17 +30,17 @@
 
 (defn get-update-data [prev] 
   (->> 
-  (for [[pos state] prev, neighbour (neighbours pos)] {neighbour state})
-     (apply merge-with #()) ; TODO: func similiar to concat but able to (concat :a :b) and get [:a :b]
-     (map (fn [k v] [k (frequencies v)]))
+  (for [[pos state] prev, neighbour (neighbours pos)] {neighbour [state]})
+     (apply (partial merge-with concat)) 
+     (map (fn [[k v]] [k (frequencies v)]))
      (into {})))
 
 ; Takes a sequence of rules
 ; Each rule should take the type of a cell and a mapping of type->count-neighbours-of-that-type and 
-; return the keyword corresponding to that type of cell if the cell of a current time should appear
+; return the keyword corresponding to the type of the cell after the step if it applies to this cell
 ; nil otherwise
-; f : [type [[type_i freq_i]]] -> nil | type
-; Assumes that if a none of the rules applies to cell, the cell is dead
+; f : [type {[type_i freq_i]}] -> nil | type
+; Assumes that if none of the rules applies to a cell, the cell is dead.
 ; Retturns a generated step-function
 
 (defn stepper [rules neighbours] (fn []
@@ -49,11 +49,12 @@
       (ensure cells)
       (ensure cells-to-redraw)
       (ref-set cells 
-              (for [[pos neighbour-types] (get-update-data cells-previous)
-                    :let [old-state (cells-previous pos)
-                          new-state (some identity ((apply juxt rules) old-state neighbour-types))]
-                    :when new-state]
-                   [pos new-state]))
+              (into {}
+                    (for [[pos neighbour-types] (get-update-data cells-previous)
+                          :let [old-state (cells-previous pos)
+                                new-state (some identity ((apply juxt rules) old-state neighbour-types))]
+                          :when new-state]
+                         [pos new-state])))
       (ref-set cells-to-redraw (merge @cells  
                                       (zipmap (clojure.set/difference (set (keys cells-previous)) 
                                                                       (set (keys @cells)))
