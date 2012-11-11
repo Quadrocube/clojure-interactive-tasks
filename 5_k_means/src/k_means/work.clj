@@ -12,6 +12,71 @@
 ;;; Note that you don't get k - number of clusters. You need to specify it somewhere in function.
 ;;; To test you solution use following tests:
 
+;;; k-means
+
+(def ^:dynamic k 1)
+
+(defn distance [[x1 y1] [x2 y2]]
+  (Math/sqrt (+ (* (- x1 x2) (- x1 x2)) (* (- y1 y2) (- y1 y2)))))
+
+(defn idx->clusters [M]
+  (map #(map first %)
+    (vals
+      (group-by second M))))
+
+(defn find-nearest [point other]
+  (:point
+    (first
+      (sort-by :dist
+         (for [x other] {:point x :dist (distance point x)})))))
+
+(defn centers->clusters [centers points]
+  (idx->clusters
+    (for [p points] [p (find-nearest p centers)])))
+
+(defn clusters->centers [clusters]
+  (map 
+    (fn [points] 
+        [(/ (apply + (map first points)) (count points))
+         (/ (apply + (map second points)) (count points))]) 
+    clusters))
+
+(defn next-clusters [clusters]
+  (let [new-centers (clusters->centers clusters)]
+    (centers->clusters new-centers (apply concat clusters))))
+
+(defn k-means [points gen-initial-clusters]
+  (loop [clusters (gen-initial-clusters points)]
+    (let [n (next-clusters clusters)]
+      (if (= n clusters)
+          n
+          (recur n))))) 
+                
+;;; initializing methods
+
+(defn random-partition [points]
+  (idx->clusters (for [p points] [p (rand-int k)])))
+
+(defn Forgy [points]
+  (let 
+    [centers (take k
+               (distinct
+                 (repeatedly #(rand-nth points))))]
+    (centers->clusters centers points)))
+
+;;; k-determining methods
+
+(defn static [_] 6)
+
+;;; tests
+
+(defn solution-generator [k-determ initialize]
+  (fn [points]
+    (binding [k (k-determ points)]
+      (k-means points initialize))))
+
+(def SOLUTION (solution-generator static random-partition))
+
 ; (run-empty SOLUTION)
 
 ; (run-2-circles SOLUTION)
@@ -27,7 +92,7 @@
 ;;; Now try to improve your solution so it can determine k based on given points. So if there are visually 3 clusters it should partition points to 3 clusters, if 4 than to 4 clusters.
 ;;; Test your solution on this test:
 
-; (run-random-circles SOLUTION)
+(run-random-circles SOLUTION)
 
 
 
