@@ -15,9 +15,16 @@
 ;;; k-means
 
 (def ^:dynamic k 1)
+(def ^:dynamic gen-initial-clusters 0)
 
 (defn distance [[x1 y1] [x2 y2]]
-  (Math/sqrt (+ (* (- x1 x2) (- x1 x2)) (* (- y1 y2) (- y1 y2)))))
+  (Math/hypot (- x1 x2) (- y1 y2)))
+
+(defn pairs [s] ;;; stumbled upon this one... Sure there's better way, but being to blind to find it for a while.
+   (for [i (range (count s))
+         :let [t (nthrest s i)]
+         other (rest t)]
+     [(first t) other]))
 
 (defn idx->clusters [M]
   (map #(map first %)
@@ -45,12 +52,12 @@
   (let [new-centers (clusters->centers clusters)]
     (centers->clusters new-centers (apply concat clusters))))
 
-(defn k-means [points gen-initial-clusters]
+(defn k-means [points]
   (loop [clusters (gen-initial-clusters points)]
     (let [n (next-clusters clusters)]
       (if (= n clusters)
           n
-          (recur n))))) 
+          (recur n)))))
                 
 ;;; initializing methods
 
@@ -66,16 +73,42 @@
 
 ;;; k-determining methods
 
+(defn defect [clusters]
+  (/
+    (*
+      (apply max (mapcat
+                   (fn [clust cent]
+                     (map #(distance % cent) clust))
+                   clusters (clusters->centers clusters)))
+      (apply max (for [cl clusters 
+                       [x other] (pairs cl)]
+                      (distance x other)))
+      (/ (apply + (for [cl clusters
+                        [x other] (pairs cl)]
+                       (distance x other)))
+         (count (mapcat #(pairs %) clusters))))
+    (apply min (map (fn [[x other]] (distance x other)) 
+                    (pairs (clusters->centers clusters))))))
+
+(defn defect-ruled [points]
+  (:K
+    (first
+      (sort-by :defect
+        (for [cur-k (range 2 8)]
+          (binding [k cur-k]
+            {:defect (defect (k-means points)) :K cur-k}))))))
+
 (defn static [_] 6)
 
 ;;; tests
 
 (defn solution-generator [k-determ initialize]
   (fn [points]
-    (binding [k (k-determ points)]
-      (k-means points initialize))))
+    (binding [gen-initial-clusters initialize]
+      (binding [k (k-determ points)]
+        (k-means points)))))
 
-(def SOLUTION (solution-generator static random-partition))
+(def SOLUTION (solution-generator defect-ruled random-partition))
 
 ; (run-empty SOLUTION)
 
