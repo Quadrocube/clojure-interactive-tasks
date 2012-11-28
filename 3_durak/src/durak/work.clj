@@ -30,7 +30,7 @@
                  {:suit suit :rank rank})))
 
 (def cards-in-opps-hand (atom #{})) ; Cards, that we already know are in opp's hand
-(def left-unknown (atom deck)) ; Draw deck + unknown opp's hand - table
+(def left-unknown (atom deck)) ; Draw deck + unknown opp's hand (still not seen in other words)
 
 (def last-action (atom 0)) ; :defend-success / :defend-failure / :attack-success / :attack-failure
 (def last-opps-hand-size (atom 6))
@@ -39,6 +39,10 @@
 
 (def opps-hand-size (atom 6))
 (def draw-size (atom 24))
+
+; So, theese ^ atoms are representing the outer world state and are changed
+;            |   at the beggining and at the end of each turn so as to make
+;            |   bot more intelligent.
 
 (defn can-beat [acard dcard trump]
   (if 
@@ -55,7 +59,7 @@
 (defn count-equal-non-trump [coll card trump]
   (count (filter #(and (= (:rank %) (:rank card)) (not= trump (:suit %))) coll)))
 
-(defn prepare-defence [hand table trump]
+(defn prepare-defence [hand table trump] ; Estimate and apply the world changes in defend-function
   (let 
     [last-opps-hand-size @opps-hand-size]
     (do
@@ -86,7 +90,7 @@
 
       (swap! opps-hand-size dec)))) ; Opp attacked - update hand
 
-(defn prepare-attack [hand table trump]
+(defn prepare-attack [hand table trump] ; Same as above, but for attack
   (let 
     [last-opps-hand-size @opps-hand-size]
     (do
@@ -123,7 +127,10 @@
             (swap! opps-hand-size dec)) ; Attack continues, opp lost 1 card
         0 ()))))
 
-(defn split-hand [trump hand]
+(defn split-hand [trump hand] 
+  ; Splits hand into keep and pile cards - cards that we don't really want to discard
+  ; (all trump cards + one most powerfull from each suit)
+  ; and pile cards - that we are free to attack with
   (let
     [Keep (->> hand
             (group-by :suit)
@@ -142,55 +149,61 @@
          {:card % :place :pile})
       hand)))
 
-(defn defend [hand table trump]
+(defn defend [hand table trump] ; Main defend func
   (->> hand
     (split-hand trump)
     (filter #(can-beat (:card %) (last table) trump))
     (sort
-      (fn [{acard :card aplace :place} {bcard :card bplace :place}]
+      (fn [{acard :card aplace :place} {bcard :card bplace :place}] ; Some shamanistic comparator
        (boolean
-         (if (= aplace bplace) 
-            (if (xor (= trump (:suit acard)) (= trump (:suit bcard)))
+         (if (= aplace bplace) ; If they are both in keep or both in pile
+            (if (xor (= trump (:suit acard)) (= trump (:suit bcard))) ; If one of them is not a trump
                 (= trump (:suit bcard))
-                (if (xor (contains-equal? table acard) (contains-equal? table bcard))
+                (if (xor (contains-equal? table acard) (contains-equal? table bcard)) ; If one of them is on table
                     (contains-equal? table acard)
-                    (if (xor (contains-equal? @cards-in-opps-hand acard) (contains-equal? @cards-in-opps-hand bcard))
+                    (if (xor (contains-equal? @cards-in-opps-hand acard) (contains-equal? @cards-in-opps-hand bcard)) ; If one of them is in opps hand
                         (contains-equal? @cards-in-opps-hand bcard) 
-                        (if (xor (contains-equal? @left-unknown acard) (contains-equal? @left-unknown bcard))
+                        (if (xor (contains-equal? @left-unknown acard) (contains-equal? @left-unknown bcard)) ; If one of them is still in unknown cards
                             (contains-equal? @left-unknown bcard)
-                            (can-beat bcard acard trump)))))
+                            (can-beat bcard acard trump))))) ; If all other match, just discard the worst
             (= aplace :pile)))))
     (first)
     (:card)))
 
-(defn attack [hand table trump]
+(defn attack [hand table trump] ; Main attack func
   (let 
-    [cards (if (> @draw-size 2)
+    [cards (if (> @draw-size 2) 
+             ; If the end is near (2 cards left in drow-pile) - 
+             ; all cards go into pile instead of keep
                (keep #(when (= (:place %) :pile) (:card %))
                    (split-hand trump hand))
                hand)
      cards (if (> (count table) 0)
-             (filter #(contains-equal? table %) cards)
+             (filter #(contains-equal? table %) cards) ; Keep only those that are on table
              cards)]
     (->> cards
       (sort 
-        (fn [acard bcard]
+        (fn [acard bcard] ; another woodo-comparator
           (boolean
-            (if (xor (= trump (:suit acard)) (= trump :suit bcard))  
+            (if (xor (= trump (:suit acard)) (= trump :suit bcard)) ; if one of them is trump
                 (= trump (:suit bcard))
-                (if (= (count-equal-non-trump cards acard trump) (count-equal-non-trump cards bcard trump))
-                    (if (= (:rank acard) (:rank bcard))
+                (if (= (count-equal-non-trump cards acard trump) (count-equal-non-trump cards bcard trump)) 
+                    ; Sort by the amount of same cards in hand (but for trump ones)
+                    (if (= (:rank acard) (:rank bcard)) ; Rank comparison. Yeah, we really need rank here instead of can-beat
                         (if (xor (can-be-beaten acard @cards-in-opps-hand trump) (can-be-beaten bcard @cards-in-opps-hand trump)) 
+                            ; if it can be beaten by one in opps-hand
                             (can-be-beaten bcard @cards-in-opps-hand trump) 
                             (if (xor (can-be-beaten bcard @left-unknown trump) (can-be-beaten acard @left-unknown trump))
+                                ; if it can be beaten by one in still unknown cards
                                 (can-be-beaten bcard @left-unknown trump)
-                                (can-beat bcard acard trump))) ; Fix: trump-faulting end-game
+                                (can-beat bcard acard trump)))
                         (< (:rank acard) (:rank bcard)))
                     (> (count-equal-non-trump cards acard trump) (count-equal-non-trump cards bcard trump)))))))
       (first))))
 
 (defn attack-setup [{:keys [hand table trump]}]
   (do
+    ; debug
     ;(println "attack-setup:hand" hand)
     ;(println "attack-setup:table" table)
     ;(println "attack-setup:trump" trump) 
@@ -221,6 +234,7 @@
 
 (defn defence-setup [{:keys [hand table trump]}]
   (do
+    ; debug
     ;(println "defence-setup:hand" hand)
     ;(println "defence-setup:table" table)
     ;(println "defence-setup:trump" trump) 
