@@ -103,10 +103,7 @@
 (def False Second)
 
 (defn Zero? [x]
-  (if 
-    (= (to-normal-num x) 0)
-    True
-    False)) ; Hacky way, but equivalence is undecidable: http://en.wikipedia.org/wiki/Lambda_calculus#Undecidability_of_equivalence
+    ((x (fn [_] False)) True))
 
 (def sum-r
   (fn [f]
@@ -124,9 +121,6 @@
 
 (test-sum sum)
 
-(println "\nFinished up to here")
-
-;;; Additional task.
 ;;; Implement set of function to create/manipulate lists.
 ;;; Your need to implement following functions:
 ;;; empty? - checks if list is empty, returns true or false. see church booleans http://en.wikipedia.org/wiki/Church_encoding#Church_booleans
@@ -137,29 +131,62 @@
 ;;;
 ;;; Help: http://en.wikipedia.org/wiki/Church_encoding#List_encodings
 
-;(def empty? :YOUR_IMPLEMENTATION_HERE)
 
-;(def empty-list :YOUR_IMPLEMENTATION_HERE)
+;;; node : [ (type | element) | next-node]]
 
-;(def head :YOUR_IMPLEMENTATION_HERE)
+(def minus
+  (fn [a]
+    (fn [b]
+      ((b dec) a))))
 
-;(def tail :YOUR_IMPLEMENTATION_HERE)
+(def eq
+  (fn [a]
+    (fn [b]
+      (Zero? ((minus a) b)))))
 
-;(def cons :YOUR_IMPLEMENTATION_HERE)
+(def nil-type (to-church-num 0))
+(def node-type (to-church-num 1))
 
-;(((empty? empty-list) true) false) ; must return true
+(defn empty? [x]
+  ((eq ((x First) First)) nil-type))
 
-;(head (cons "Hello" empty-list)) ; must return "Hello"
+(defn make-node [a]
+  (make-pair 
+     ((make-pair 
+        node-type) 
+        a)))
 
-;(let [list (cons "Hello" empty-list)
-;      t (tail list)]
-;  ((empty? t) true) false) ; must return true
+(def empty-list 
+  ((make-pair 
+     ((make-pair 
+        nil-type) 
+        nil))
+     nil))
 
-;(test-list {:empty? empty?
-;            :empty-list empty-list
-;            :head head
-;            :tail tail
-;            :cons cons}) ; test your solution
+(defn head [l]
+  ((l First) Second))
 
+(defn tail [l]
+  (((l Second) First) Second))
 
+(def cons 
+  (fn [a]
+    (fn [b]
+      ((make-node a)
+         ((make-node b)
+            empty-list)))))
 
+(println "\n")
+(println (((empty? empty-list) true) false)) ; must return true
+
+(println (head ((cons "Hello") empty-list))) ; must return "Hello"
+
+(let [list ((cons "Hello") empty-list)
+      t (tail list)]
+  (println (((empty? t) true) false))) ; must return true
+
+(test-list {:empty? empty?
+            :empty-list empty-list
+            :head head
+            :tail tail
+            :cons cons}) ; test your solution
