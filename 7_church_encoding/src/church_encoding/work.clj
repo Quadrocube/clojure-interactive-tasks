@@ -20,11 +20,17 @@
 
 (def church-2 (to-church-num 2))    ; we'll use it in examples later
 
+(def church-0 (to-church-num 0))
 
 
 ;;; Implement + (plus) for church numerals.
 
-(def plus :YOUR_IMPLEMENTATION_HERE)
+(def plus 
+  (fn [a]
+    (fn [b]
+      (fn [f]
+        (fn [x]
+          ((a f) ((b f) x)))))))
 
 (to-normal-num ((plus church-2) church-2)) ; must return 4
 
@@ -34,45 +40,91 @@
 
 ;;; Implement * (multiplication) for church numerals
 
-(def mult :YOUR_IMPLEMENTATION_HERE)
+(def mult 
+  (fn [a]
+    (fn [b]
+      (fn [f]
+        (fn [x]
+          ((a (b f)) x))))))
 
 (to-normal-num ((mult church-2) church-5)) ; must return 10
 
 (test-mult mult) ; test your solution
 
 
-
 ;;; Implement ^ (pow function) for church numerals.
 
-(def pow :YOUR_IMPLEMENTATION_HERE)
+(def pow 
+  (fn [a]
+    (fn [b]
+      (b a))))
 
 (to-normal-num ((pow church-2) church-5)) ; must return 32
 
 (test-pow pow) ; test your solution
 
 
-
 ;;; Implement dec function for church numerals.
 
-(def dec :YOUR_IMPLEMENTATION_HERE)
+(def make-pair
+  (fn [a]
+    (fn [b]
+      (fn [f]
+        ((f a) b)))))
 
-(to-normal-num (dec church-5)) ; must return 4
+(def First
+  (fn [a]
+    (fn [b]
+      a)))
 
-(test-dec dec) ; test your solution
+(def Second
+  (fn [a]
+    (fn [b]
+      b)))
 
+
+(defn Dec [n]
+  (fn [f]
+    (fn [x]
+      (((n (fn [p]
+             ((make-pair (f (p First))) (p First))))
+          ((make-pair x) x)) Second))))
+
+(to-normal-num (Dec church-5)) ; must return 4
+
+(test-dec Dec) ; test your solution
 
 
 ;;; Implement sum function. sum takes number n and returns sum of all numbers less or equals to n.
 ;;; You'll need to use recursion here. For recursion you'll need lazy values.
 ;;; You can use delay for that: http://clojuredocs.org/clojure_core/1.2.0/clojure.core/delay
 
-(def sum :YOUR_IMPLEMENTATION_HERE)
+(def True First)
+(def False Second)
+
+(defn Zero? [x]
+  (if 
+    (= (to-normal-num x) 0)
+    True
+    False)) ; Hacky way, but equivalence is undecidable: http://en.wikipedia.org/wiki/Lambda_calculus#Undecidability_of_equivalence
+
+(def sum-r
+  (fn [f]
+    (fn [n]
+      (((Zero? n) 
+          (delay
+            n)) 
+          (delay
+            ((plus n) @((f f) (Dec n))))))))
+
+(defn sum [n] 
+  @((sum-r sum-r) n))
 
 (to-normal-num (sum church-2)) ; must return 3
 
 (test-sum sum)
 
-
+(println "\nFinished up to here")
 
 ;;; Additional task.
 ;;; Implement set of function to create/manipulate lists.
@@ -85,29 +137,29 @@
 ;;;
 ;;; Help: http://en.wikipedia.org/wiki/Church_encoding#List_encodings
 
-(def empty? :YOUR_IMPLEMENTATION_HERE)
+;(def empty? :YOUR_IMPLEMENTATION_HERE)
 
-(def empty-list :YOUR_IMPLEMENTATION_HERE)
+;(def empty-list :YOUR_IMPLEMENTATION_HERE)
 
-(def head :YOUR_IMPLEMENTATION_HERE)
+;(def head :YOUR_IMPLEMENTATION_HERE)
 
-(def tail :YOUR_IMPLEMENTATION_HERE)
+;(def tail :YOUR_IMPLEMENTATION_HERE)
 
-(def cons :YOUR_IMPLEMENTATION_HERE)
+;(def cons :YOUR_IMPLEMENTATION_HERE)
 
-(((empty? empty-list) true) false) ; must return true
+;(((empty? empty-list) true) false) ; must return true
 
-(head (cons "Hello" empty-list)) ; must return "Hello"
+;(head (cons "Hello" empty-list)) ; must return "Hello"
 
-(let [list (cons "Hello" empty-list)
-      t (tail list)]
-  ((empty? t) true) false) ; must return true
+;(let [list (cons "Hello" empty-list)
+;      t (tail list)]
+;  ((empty? t) true) false) ; must return true
 
-(test-list {:empty? empty?
-            :empty-list empty-list
-            :head head
-            :tail tail
-            :cons cons}) ; test your solution
+;(test-list {:empty? empty?
+;            :empty-list empty-list
+;            :head head
+;            :tail tail
+;            :cons cons}) ; test your solution
 
 
 
