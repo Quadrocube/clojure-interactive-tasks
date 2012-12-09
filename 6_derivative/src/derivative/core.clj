@@ -27,9 +27,55 @@
 ;;; (derivative '(+ x x)) => 2 or '(+ 1 1)
 ;;; (derivative '(sin (* 2 x))) => (* 2 (cos (* 2 x))) or it's equilavent.
 
-(defn derivative [expr]
-  expr)
+(defmulti derivative 
+  (fn [l] (if (sequential? l)
+              (first l)
+              l)))
 
+(defmethod derivative 'x [_]
+  1)
+
+(defmethod derivative '+ [[_ u v]]
+  (list '+
+        (derivative u)
+        (derivative v)))
+
+(defmethod derivative '- [[_ u v]]
+  (list '-
+        (derivative u)
+        (derivative v)))
+
+(defmethod derivative '* [[_ u v]]
+  (list '+
+        (list '* u (derivative v))
+        (list '* v (derivative u))))
+
+(defmethod derivative '/ [[_ u v]]
+  (list  '/
+        (list '- 
+              (list '* (derivative u) v)
+              (list '* (derivative v) u))
+        (list '* v v)))
+
+(defmethod derivative 'log [[_ u]]
+  (list '/
+        (derivative u)
+        u))
+
+(defmethod derivative 'sin [[_ u]]
+  (list '*
+        (list 'cos u)
+        (derivative u)))
+
+(defmethod derivative 'cos [[_ u]]
+  (list '*
+        -1
+        (list '*
+              (list 'sin u)
+              (derivative u))))
+
+(defmethod derivative :default [_]
+  0)
 
 ;;; Tests.
 ;;; Uncomment and try every function.
@@ -77,4 +123,4 @@
   (let [f '(log (+ 1 (* x x)))]
     (view (expr-plot -4 4 f (derivative f)))))
 
-;(test-logarithm)
+(test-logarithm)
