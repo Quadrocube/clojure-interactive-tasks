@@ -197,14 +197,45 @@
 ;;; map takes 2 arguments: function and list
 ;;; reduce takes 3 arguments: function, init value and list
 
-(def map :YOUR_IMPLEMENTATION_HERE)
+;;; node : [ (type | element) | next-node]]
 
-(def reduce :YOUR_IMPLEMENTATION_HERE)
+(def map-r
+  (fn [f]
+    (fn [l]
+      (fn [rf]
+        (((empty? l)
+            (delay l))
+            (delay ((cons 
+                      (f (head l))) 
+                      @(((rf f) (tail l)) rf))))))))
+
+(def mmap
+  (fn [f]
+    (fn [l]
+      @(((map-r f) l) map-r))))
+
+(def reduce-r
+  (fn [f]
+    (fn [v]
+      (fn [l]
+        (fn [rf]
+          (((empty? l)
+              (delay v))
+              (delay @((((rf f) ((f v) (head l))) (tail l)) rf))))))))
+
+(def mreduce
+  (fn [f]
+    (fn [v]
+      (fn [l]
+        @((((reduce-r f) v) l) reduce-r)))))
+
+#_((mmap print) empty-list)
+#_((mmap print) ((mmap print) l))
 
 (test-map-reduce {:empty? empty?
                   :empty-list empty-list
                   :head head
                   :tail tail
                   :cons cons
-                  :map map
-                  :reduce reduce})
+                  :map mmap
+                  :reduce mreduce})
