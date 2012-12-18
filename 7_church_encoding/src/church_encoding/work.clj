@@ -6,7 +6,7 @@
 ;;; You can use utility function to-church-num and to-normal-num to convert normal to church and church to normal:
 ;;; Note that to-church-num returns function that takes 1 argument (f)
 ;;; and returns function that takes 1 argument (x) that calculates (f (f ... (f x)...))
-;;; All functions in this task must 1 argument functions that return other functions.
+;;; All functions in this task must be 1 argument functions that return other functions.
 
 ;;; Example:
 
@@ -190,3 +190,21 @@
             :head head
             :tail tail
             :cons cons}) ; test your solution
+
+
+;;; Additional task.
+;;; Implement map and reduce functions for lambda lists.
+;;; map takes 2 arguments: function and list
+;;; reduce takes 3 arguments: function, init value and list
+
+(def map :YOUR_IMPLEMENTATION_HERE)
+
+(def reduce :YOUR_IMPLEMENTATION_HERE)
+
+(test-map-reduce {:empty? empty?
+                  :empty-list empty-list
+                  :head head
+                  :tail tail
+                  :cons cons
+                  :map map
+                  :reduce reduce})
